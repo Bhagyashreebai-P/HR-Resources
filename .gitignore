@@ -1,0 +1,21 @@
+pacman::p_load(corrplot,ggplot2,caret,lattice)
+data=read.csv("C:\\Users\\baibhagy\\AppData\\Local\\Temp\\Temp1_human-resources-analytics.zip\\HR_comma_sep.csv")
+head(data)
+#Checking for missing values
+sapply(data,function(x) sum(is.na(x)))
+#Converting to factors 
+data$sales=as.factor(data$sales)
+data$salary=ordered(data$salary ,c("low","medium","high"))
+#Corelation matrix
+library(corrplot)
+cor_matrxi=cor(data[,1:8]) 
+#visualizing cor-plot 
+corrplot(cor_matrxi,method="circle")
+#Boxplot
+ggplot(data,aes(x=salary,y=satisfaction_level,fill=factor(left),colour=factor(left)))+geom_boxplot(outlier.colour="black")+xlab("salary")+ylab("satisfaction_level") 
+#Splitting of the data
+set.seed(1)
+splitInd=createDataPartition(data$left,p=0.80,list=FALSE,times=1)
+head(splitInd)
+trainsplit=data[splitInd,]
+testsplit=data[-splitInd,]
