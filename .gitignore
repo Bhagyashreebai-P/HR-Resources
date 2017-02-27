@@ -1,21 +1,110 @@
-pacman::p_load(corrplot,ggplot2,caret,lattice)
-data=read.csv("C:\\Users\\baibhagy\\AppData\\Local\\Temp\\Temp1_human-resources-analytics.zip\\HR_comma_sep.csv")
+#OBJECTIVE:Why are our best and most experienced employees leaving prematurely? 
+Left: 1= Employee who left,0= Employee who didt leave(in work)
+#loading packages
+pacman::p_load(corrplot,ggplot2,caret,lattice,C50,proC,LogicReg,kernlab,randomForest,ggplot)
+#loading data
+data=read.csv("C:\\Users\\baibhagy\\Downloads\\human-resources-analytics\\HR_comma_sep.csv")
 head(data)
-#Checking for missing values
-sapply(data,function(x) sum(is.na(x)))
 #Converting to factors 
 data$sales=as.factor(data$sales)
 data$salary=ordered(data$salary ,c("low","medium","high"))
+#Checking for missing values
+sapply(data,function(x) sum(is.na(x)))
+#Univariate & Bivaraite Analysis
 #Corelation matrix
-library(corrplot)
 cor_matrxi=cor(data[,1:8]) 
 #visualizing cor-plot 
-corrplot(cor_matrxi,method="circle")
+corrplot(cor_matrxi,method="number")
 #Boxplot
+#satisfaction_level & salary ,with factoring left as a variable
 ggplot(data,aes(x=salary,y=satisfaction_level,fill=factor(left),colour=factor(left)))+geom_boxplot(outlier.colour="black")+xlab("salary")+ylab("satisfaction_level") 
+#Conclusion:average satisfaction level of employee who left(1) is lesser compared to who are in work(0)
+
 #Splitting of the data
 set.seed(1)
 splitInd=createDataPartition(data$left,p=0.80,list=FALSE,times=1)
 head(splitInd)
 trainsplit=data[splitInd,]
 testsplit=data[-splitInd,]
+print(table(trainsplit$left))
+
+#___________________________C5.0 tree modelling__________________________#
+ctrl <- trainControl(method = "cv", number = 5)
+C50_model <- train(as.factor(left) ~., data = trainsplit, method = "C5.0Tree", trControl = ctrl)
+#Predict the test model 
+pred <- predict(C50_model, testsplit)
+#confusion matrix - for C50 tree
+confusionMatrix(pred,testsplit$left)
+# ROC curve -C50 tree
+AUC_C50=roc(as.numeric(pred),as.numeric(testsplit$left))
+print(AUC_C50)
+#Ploting the AUC curve
+plot(AUC_C50, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_C50$auc[[1]],3)),col = 'green')
+
+#____________________________OTHER MODELS________________________________#
+
+#_________________________Logistic Regression____________________________#
+
+ctrl <- trainControl(method = "cv", number = 5)
+LR_model= train(as.factor(left) ~., data = trainsplit, method = "glm", trControl = ctrl)
+summary(LR_model)
+#Predict the model 
+pred_LR=predict(LR_model,testsplit)
+#CM_LR model 
+CM_LR=confusionMatrix(pred_LR,testsplit$left)
+AUC_LR=roc(as.numeric(pred_LR),as.numeric(testsplit$left))
+print(AUC_LR)
+#Ploting the AUC curve
+plot(AUC_LR, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_LR$auc[[1]],3)),col = 'red')
+
+#_____________________________SVM________________________________________#
+ctrl <- trainControl(method = "cv", number = 5)
+SVM_model= train(as.factor(left) ~., data = trainsplit, method = "svmLinear", trControl = ctrl)
+summary(SVM_model)
+#Predict the model 
+pred_SVM=predict(SVM_model,testsplit)
+#CM_SVM model 
+CM_SVM=confusionMatrix(pred_SVM,testsplit$left)
+AUC_SVM=roc(as.numeric(pred_SVM),as.numeric(testsplit$left))
+print(AUC_SVM)
+#Ploting the AUC curve
+plot(AUC_SVM, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_SVM$auc[[1]],3)),col = 'orange')
+
+#_________________________ Random Forest__________________________________#
+RF_model=randomForest(as.factor(left)~.,data=trainsplit)
+importance(RF_model)
+#Predict the model 
+pred_RF=predict(RF_model,testsplit)
+#CM_RF model 
+CM_RF=confusionMatrix(pred_RF,testsplit$left)
+AUC_RF=roc(as.numeric(pred_RF),as.numeric(testsplit$left))
+print(AUC_RF)
+#Ploting the AUC curve
+plot(AUC_RF, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_RF$auc[[1]],3)),col = 'blue')
+
+#_________________Comparing the all the ROC curves________________________#
+#RF_plot
+plot(AUC_RF,ylim=c(0,1),main=paste('ROC-Comparision:RF(blue),SVM(orange),LR(red),C5.0(green)',col='blue'))
+#combining other plots to RF plot- par funtion is used
+par(new = TRUE)
+plot(AUC_C50,col='green')
+par(new = TRUE)
+plot(AUC_LR,col='red')
+par(new=TRUE)
+plot(AUC_SVM,col='orange')
+#______________Feature Engineering for RF - Since it is performing good___#
+importance(RF_model)
+Featured_data=trainsplit[,1:5]
+new_model=randomForest(as.factor(trainsplit$left)~.,data=Featured_data)
+importance(new_model)
+#Predict the model 
+pred_RFnew=predict(new_model,testsplit)
+#CM_RF model 
+CM_RFnew=confusionMatrix(pred_RFnew,testsplit$left)
+AUC_RFnew=roc(as.numeric(pred_RFnew),as.numeric(testsplit$left))
+print(AUC_RFnew)
+#Ploting the AUC curve
+plot(AUC_RFnew, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_RFnew$auc[[1]],3)),col = 'blue')
+
+#Getting back to our objective-Why are our best and most experienced employees(Good) leaving prematurely?
+#subsetting the Good people
