@@ -1,7 +1,7 @@
 #OBJECTIVE:Why are our best and most experienced employees leaving prematurely? 
-Left: 1= Employee who left,0= Employee who didt leave(in work)
+#Left: 1= Employee who left,0= Employee who didt leave(in work)
 #loading packages
-pacman::p_load(corrplot,ggplot2,caret,lattice,C50,proC,LogicReg,kernlab,randomForest,ggplot)
+pacman::p_load(corrplot,ggplot2,caret,lattice,C50,pROC,LogicReg,kernlab,randomForest,ggplot)
 #loading data
 data=read.csv("C:\\Users\\baibhagy\\Downloads\\human-resources-analytics\\HR_comma_sep.csv")
 head(data)
@@ -19,6 +19,10 @@ corrplot(cor_matrxi,method="number")
 #satisfaction_level & salary ,with factoring left as a variable
 ggplot(data,aes(x=salary,y=satisfaction_level,fill=factor(left),colour=factor(left)))+geom_boxplot(outlier.colour="black")+xlab("salary")+ylab("satisfaction_level") 
 #Conclusion:average satisfaction level of employee who left(1) is lesser compared to who are in work(0)
+ggplot(data,aes(x=salary,y=time_spend_company,fill=factor(left),colour=factor(left)))+geom_boxplot(outlier.colour =NA)+xlab("salary")+ylab("Time spent in company")
+#conclusion :the people who left (1) are more experienced compared to the people who didt leave in low and medium category.
+ggplot(data,aes(x=factor(time_spend_company),y=average_montly_hours,fill=factor(left),colour=factor(left)))+geom_boxplot(outlier.colour =NA)+xlab("time_spend_company")+ylab("average_montly_hours")
+#conclusion:people who left the work(1)has spent more hours of work 
 
 #Splitting of the data
 set.seed(1)
@@ -108,3 +112,107 @@ plot(AUC_RFnew, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_RFnew
 
 #Getting back to our objective-Why are our best and most experienced employees(Good) leaving prematurely?
 #subsetting the Good people
+colnames(data)
+#best and most experienced ppl are 1.last evaluation 2.no of projects dealt 3.time spend company 
+#last_evaluation=0.70
+#number_project= 5
+#time_spend_company=4
+sub_data=data[data$last_evaluation >= 0.70 & data$number_project >=5 & data$time_spend_company>=4,]
+nrow(sub_data)
+# same process is done for the sudsetted data
+head(sub_data)
+as=sub_data[,1:6]
+#Correlation plot
+library(corrplot)
+cor(as)
+corrplot(cor(as),method="number")
+#splitting of data 
+splitindex=createDataPartition(sub_data$left,times=1,p=0.8,list=FALSE)
+nrow(splitindex)
+train_sub_split=sub_data[splitindex,]
+test_sub_split=sub_data[-splitindex,]
+table(sub_data$left)
+#___________________________C5.0 tree modelling__________________________#
+ctrl <- trainControl(method = "cv", number = 5)
+C50_model_SD <- train(as.factor(left) ~., data = train_sub_split, method = "C5.0Tree", trControl = ctrl)
+#Predict the test model 
+pred_SD <- predict(C50_model_SD, test_sub_split)
+#confusion matrix - for C50 tree
+confusionMatrix(pred_SD,test_sub_split$left)
+# ROC curve -C50 tree
+AUC_C50_SD=roc(as.numeric(pred),as.numeric(testsplit$left))
+print(AUC_C50_SD)
+#Ploting the AUC curve
+plot(AUC_C50_SD, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_C50_SD$auc[[1]],3)),col = 'green')
+
+#____________________________OTHER MODELS________________________________#
+
+#_________________________Logistic Regression____________________________#
+
+ctrl <- trainControl(method = "cv", number = 5)
+LR_model_SD= train(as.factor(left) ~., data = train_sub_split, method = "glm", trControl = ctrl)
+summary(LR_model)
+#Predict the model 
+pred_LR_SD=predict(LR_model_SD,test_sub_split)
+#CM_LR model 
+CM_LR_SD=confusionMatrix(pred_LR_SD,test_sub_split$left)
+AUC_LR_SD=roc(as.numeric(pred_LR_SD),as.numeric(test_sub_split$left))
+print(AUC_LR_SD)
+#Ploting the AUC curve
+plot(AUC_LR_SD, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_LR_SD$auc[[1]],3)),col = 'red')
+
+#_____________________________SVM________________________________________#
+ctrl <- trainControl(method = "cv", number = 5)
+SVM_model_SD= train(as.factor(left) ~., data = train_sub_split, method = "svmLinear", trControl = ctrl)
+summary(SVM_model_SD)
+#Predict the model 
+pred_SVM_SD=predict(SVM_model_SD,test_sub_split)
+#CM_SVM model 
+CM_SVM_SD=confusionMatrix(pred_SVM_SD,test_sub_split$left)
+AUC_SVM_SD=roc(as.numeric(pred_SVM_SD),as.numeric(test_sub_split$left))
+print(AUC_SVM_SD)
+#Ploting the AUC curve
+plot(AUC_SVM_SD, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_SVM_SD$auc[[1]],3)),col = 'orange')
+
+#_________________________ Random Forest__________________________________#
+RF_model_SD=randomForest(as.factor(left)~.,data=train_sub_split)
+importance(RF_model_SD)
+#Predict the model 
+pred_RF_SD=predict(RF_model_SD,test_sub_split)
+#CM_RF model 
+CM_RF_SD=confusionMatrix(pred_RF_SD,test_sub_split$left)
+AUC_RF_SD=roc(as.numeric(pred_RF_SD),as.numeric(test_sub_split$left))
+print(AUC_RF_SD)
+#Ploting the AUC curve
+plot(AUC_RF_SD, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_RF_SD$auc[[1]],3)),col = 'blue')
+
+#_________________Comparing the all the ROC curves________________________#
+#RF_plot
+plot(AUC_RF_SD,ylim=c(0,1),main=paste('ROC-Comparision:RF(blue),SVM(orange),LR(red),C5.0(green)',col='blue'))
+#combining other plots to RF plot- par funtion is used
+par(new = TRUE)
+plot(AUC_C50_SD,col='green')
+par(new = TRUE)
+plot(AUC_LR_SD,col='red')
+par(new=TRUE)
+plot(AUC_SVM_SD,col='orange')
+#______________Feature Engineering for RF - Since it is performing good___#
+importance(RF_model_SD)
+names(train_sub_split)
+Featured_data_SD=train_sub_split[,1:5]
+
+new_model_SD=randomForest(as.factor(train_sub_split$left)~.,data=Featured_data_SD)
+importance(new_model_SD)
+#Predict the model 
+pred_RFnew_SD=predict(new_model_SD,test_sub_split)
+#CM_RF model 
+CM_RFnew_SD=confusionMatrix(pred_RFnew_SD,test_sub_split$left)
+AUC_RFnew_SD=roc(as.numeric(pred_RFnew_SD),as.numeric(test_sub_split$left))
+print(AUC_RFnew_SD)
+#Ploting the AUC curve
+plot(AUC_RFnew_SD, ylim=c(0,1), print.thres=TRUE, main=paste('AUC:',round(AUC_RFnew_SD$auc[[1]],3)),col = 'blue')
+# Conclusion : 
+#OBJECTIVE:Why are our best and most experienced employees leaving prematurely? 
+# OUR BEST AND MOST EXPERIENCED EMPLOYEE LEAVE PREMATURELY BECAUSE OF THE SATISFACTION level , 
+#last EVALUATION , AVERAGE MONTHLY HOURS SPENT ANF ALSO THE TIME SPENT IN THE COMPANY.
+#this is proved by the mean decrease gini value in randomForest MODEL WHEN TESTED IT GIVES AN ACCURACY OF 99%
