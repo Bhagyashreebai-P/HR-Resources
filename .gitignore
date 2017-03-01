@@ -33,6 +33,7 @@ testsplit=data[-splitInd,]
 print(table(trainsplit$left))
 
 #___________________________C5.0 tree modelling__________________________#
+# k -fold cross validation
 ctrl <- trainControl(method = "cv", number = 5)
 C50_model <- train(as.factor(left) ~., data = trainsplit, method = "C5.0Tree", trControl = ctrl)
 #Predict the test model 
